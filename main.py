@@ -14,7 +14,6 @@ from functions.unet_architecture import build_unet_model
 # MAIN
 if __name__ == '__main__':
     path = "C:\\Users\\Fabien Boux\\Desktop\\Dataset"
-
     resolution = (128, 128)
 
     datadir = os.path.join(path, "data")
@@ -26,6 +25,8 @@ if __name__ == '__main__':
     buffer_size = 10
     train_test_ratio = .8
     validation_test_ratio = .5
+    num_epochs = 10
+    val_subsplits = 5
 
     train_dataset, test_dataset = create_dataset(datadir, p=train_test_ratio, resolution=resolution)
 
@@ -45,10 +46,8 @@ if __name__ == '__main__':
                        loss="sparse_categorical_crossentropy",
                        metrics="accuracy")
 
-    num_epochs = 10
     train_length = len(train_dataset)
     steps_per_epoch = train_length // batch_size
-    val_subsplits = 5
     test_length = len(test_dataset)
     validation_steps = test_length // batch_size // val_subsplits
 
@@ -69,12 +68,11 @@ if __name__ == '__main__':
     np.place(y_pred, y_pred < -.5, 1)
 
     nb = 5
-    img = [50, 100, 600, 405, 270]
     img = [i for i in range(len(y)) if y[i].sum() > 10][:nb]
     fig, axs = plt.subplots(4, len(img))
 
     for i in range(len(img)):
-        axs[0, i].imshow(x[img[i], :, :, 0], cmap=plt.cm.bone)
+        axs[0, i].imshow(x[img[i], :, :, 0], cmap=plt.cm.bone, vmin=-3, vmax=3)
         axs[1, i].imshow(y[img[i], :, :, 0], cmap=plt.cm.bone)
 
         axs[2, i].imshow(y_pred[img[i], :, :, 0], cmap=plt.cm.bone)
