@@ -14,6 +14,7 @@ from functions.unet_architecture import build_unet_model
 # MAIN
 if __name__ == '__main__':
     path = "C:\\Users\\Fabien Boux\\Desktop\\Dataset"
+    datadir2 = None
     resolution = (128, 128)
 
     datadir = os.path.join(path, "data")
@@ -58,8 +59,13 @@ if __name__ == '__main__':
                                    validation_data=test_batches,
                                    callbacks=[tensorboard_callback])
 
-    x = np.array([i.numpy() for i, j in test_dataset])
-    y = np.array([j.numpy() for i, j in test_dataset])
+    if datadir2 is None:
+        x = np.array([i.numpy() for i, j in test_dataset])
+        y = np.array([j.numpy() for i, j in test_dataset])
+    else:
+        train_dataset, test_dataset = create_dataset(datadir, p=train_test_ratio, resolution=resolution)
+
+    # Prediction
     y_pred = unet_model.predict(x, batch_size=8)
 
     # TODO: this process could be improve

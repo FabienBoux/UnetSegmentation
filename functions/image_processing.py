@@ -46,7 +46,7 @@ def augment(input_image, input_mask):
     new_mask = cv2.flip(input_mask, 1)
 
     # Gaussian filtering
-    new_image = gaussian_filter(new_image, sigma=random())
+    # new_image = gaussian_filter(new_image, sigma=random())
 
     return np.concatenate((input_image, new_image)), np.concatenate((input_mask, new_mask))
 
