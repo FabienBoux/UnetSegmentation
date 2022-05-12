@@ -14,10 +14,10 @@ from functions.unet_architecture import build_unet_model
 # MAIN
 if __name__ == '__main__':
     path = "C:\\Users\\Fabien Boux\\Desktop\\Dataset"
-    datadir2 = None
     resolution = (128, 128)
 
     datadir = os.path.join(path, "data")
+    datadir2 = os.path.join(path, "data2")
     logdir = os.path.join(path, "logs\\fit_" + datetime.now().strftime("%Y%m%d-%H%M%S"))
     if not os.path.exists(logdir):
         os.makedirs(logdir)

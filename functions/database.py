@@ -4,6 +4,7 @@ from datetime import datetime
 
 import numpy as np
 import tensorflow as tf
+from matplotlib import pyplot as plt
 
 from pydicom import dcmread
 from sklearn.utils import shuffle
@@ -30,16 +31,13 @@ def load_images(path=None, resolution=(128, 128)):
             if len(files) == 1:
                 dataset = dcmread(files[0])
                 image = dataset.pixel_array
-                # TODO: check if this image matches the associated mask
             else:
                 for i in range(len(files)):
                     dataset = dcmread(files[i])
                     image.append(dataset.pixel_array)
-                    location.append(dataset.get('SliceLocation', i))
-                    # TODO: check if this image matches the associated mask
+                    location.append(dataset.ImagePositionPatient[-1])
                 image = np.array(image)
                 image = image[np.argsort(location), :, :]
-                image = image[::-1, :, :]
 
             brain_mask = extract_brain_mask(image)
             image[~brain_mask] = 0
@@ -73,6 +71,7 @@ def load_images(path=None, resolution=(128, 128)):
 
             print(datetime.now().strftime("%Y/%m/%d %H:%M:%S") +
                   " - {} loaded in {}s".format(dir, round(time() - t0)))
+
         except:
             print(datetime.now().strftime("%Y/%m/%d %H:%M:%S") +
                   " - error loaded: {}".format(dir))
