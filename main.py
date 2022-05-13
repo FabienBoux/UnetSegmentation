@@ -8,6 +8,8 @@ import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
+import matplotlib
+# matplotlib.use("Qt5Agg")
 
 from functions.database import create_dataset
 from functions.unet_architecture import build_unet_model
@@ -21,12 +23,17 @@ if __name__ == '__main__':
     path = "C:\\Users\\Fabien Boux\\Desktop\\Dataset"
     resolution = (128, 128)
 
+    # Define working folders
     datadir = os.path.join(path, "data")
     datadir2 = os.path.join(path, "data2")
-    logdir = os.path.join(path, "logs\\fit_" + datetime.now().strftime("%Y%m%d-%H%M%S"))
-    if not os.path.exists(logdir):
-        os.makedirs(logdir)
+    datadir2 = None
 
+    logdir = os.path.join("logs\\fit_" + datetime.now().strftime("%Y%m%d-%H%M%S"))
+    os.makedirs(logdir)
+    outdir = os.path.join("outputs\\fit_" + datetime.now().strftime("%Y%m%d-%H%M%S"))
+    os.makedirs(outdir)
+
+    # Define neural network training hyperparameters
     batch_size = 10
     buffer_size = 10
     train_test_ratio = .8
@@ -34,7 +41,8 @@ if __name__ == '__main__':
     num_epochs = 10
     val_subsplits = 5
 
-    train_dataset, test_dataset = create_dataset(datadir, p=train_test_ratio, resolution=resolution)
+    # Create database and split
+    train_dataset, test_dataset = create_dataset(datadir, p=train_test_ratio, resolution=resolution, display=outdir)
 
     train_batches = train_dataset.cache().shuffle(buffer_size).batch(batch_size).repeat()
     train_batches = train_batches.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
@@ -64,6 +72,7 @@ if __name__ == '__main__':
                                    validation_data=test_batches,
                                    callbacks=[tensorboard_callback])
 
+    # Test data
     if datadir2 is None:
         x = np.array([i.numpy() for i, j in test_dataset])
         y = np.array([j.numpy() for i, j in test_dataset])
@@ -72,7 +81,7 @@ if __name__ == '__main__':
         x = np.array([i.numpy() for i, j in test_dataset2])
         y = np.array([j.numpy() for i, j in test_dataset2])
 
-    # Prediction
+    # Predict
     y_pred = unet_model.predict(x, batch_size=8)
 
     # TODO: this process could be improve
@@ -80,6 +89,7 @@ if __name__ == '__main__':
     np.place(y_pred, y_pred >= .5, 0)
     np.place(y_pred, y_pred < -.5, 1)
 
+    # Test / plot
     nb = 5
     img = [i for i in range(len(y)) if y[i].sum() > 10][:nb]
     fig, axs = plt.subplots(4, len(img))

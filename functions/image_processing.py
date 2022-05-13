@@ -3,6 +3,7 @@ import tensorflow as tf
 import cv2
 from matplotlib import pyplot as plt
 
+
 from scipy.ndimage import gaussian_filter
 from random import random
 from skimage.morphology import disk, erosion, dilation, opening, closing
@@ -32,13 +33,13 @@ def normalize(input_image, mask=None):
 
 
 # BRAIN EXTRACTION
-def extract_brain_mask(input_image, threshold=.25):
+def extract_brain_mask(input_image, threshold=0):
     # `prob` will be a 3d numpy image containing probability of being brain tissue for each of the voxels in `img`
     # mask can be obtained as: mask = prob > 0.5
     ext = Extractor()
     prob = ext.run(input_image)
 
-    return prob >= threshold
+    return prob > threshold
 
 
 # DATA AUGMENTATION
@@ -48,9 +49,9 @@ def augment(input_image, input_mask):
     new_mask = cv2.flip(input_mask, 1)
 
     # Gaussian filtering
-    # new_image = gaussian_filter(new_image, sigma=random())
+    new_image = gaussian_filter(new_image, sigma=random())
 
-    return np.concatenate((input_image, new_image)), np.concatenate((input_mask, new_mask))
+    return new_image, new_mask
 
 
 # POST-PROCESS IMAGES (MASK)
@@ -96,7 +97,7 @@ def split_voi(input_mask):
     #
     # s = -17
     # axs[0, 0].imshow(input_mask[:, :, s], cmap=plt.cm.bone, vmin=0, vmax=1)
-    # axs[1, 0].imshow(new_mask[:, :, s], cmap=plt.cm.bone)
+    # axs[1, 0].imshow(new_mask[:, :, s], cmap='jet', interpolation=None)
     #
     # plt.savefig('test_split.png')
     # plt.close()
