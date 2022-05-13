@@ -11,7 +11,7 @@ import tensorflow as tf
 import matplotlib
 # matplotlib.use("Qt5Agg")
 
-from functions.database import create_dataset
+from functions.database import create_dataset, save_mask
 from functions.unet_architecture import build_unet_model
 
 # Uncomment the following line to perform CPU execution instead of GPU execution
@@ -84,35 +84,4 @@ if __name__ == '__main__':
     # Predict
     y_pred = unet_model.predict(x, batch_size=8)
 
-    # TODO: this process could be improve
-    np.place(y_pred, y_pred < .5, -1)
-    np.place(y_pred, y_pred >= .5, 0)
-    np.place(y_pred, y_pred < -.5, 1)
-
-    # Test / plot
-    nb = 5
-    img = [i for i in range(len(y)) if y[i].sum() > 10][:nb]
-    fig, axs = plt.subplots(4, len(img))
-
-    for i in range(len(img)):
-        axs[0, i].imshow(x[img[i], :, :, 0], cmap=plt.cm.bone, vmin=-3, vmax=3)
-        axs[1, i].imshow(y[img[i], :, :, 0], cmap=plt.cm.bone)
-
-        axs[2, i].imshow(y_pred[img[i], :, :, 0], cmap=plt.cm.bone)
-        axs[3, i].imshow(y[img[i], :, :, 0] - y_pred[img[i], :, :, 0], cmap='jet', vmin=-1, vmax=1)
-
-        axs[0, i].set_axis_off()
-        axs[1, i].set_axis_off()
-        axs[2, i].set_axis_off()
-        axs[3, i].set_axis_off()
-
-    plt.savefig('test.png')
-    plt.close()
-
-    score = y[:, :, :, 0] - y_pred[:, :, :, 0]
-    total = (y[:, :, :, 0] == 1).sum()
-    correct = ((score == 0) & (y[:, :, :, 0] == 1)).sum()
-    uncorrect = (score == -1).sum()
-    missed = (score == 1).sum()
-
-    print((correct, uncorrect, missed) / (0.01 * total))
+    save_mask(y_pred, y)

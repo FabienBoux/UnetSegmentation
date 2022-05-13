@@ -10,7 +10,7 @@ from pydicom import dcmread
 from sklearn.utils import shuffle
 from time import time
 
-from functions.image_processing import resize, normalize, augment, extract_brain_mask, split_voi
+from functions.image_processing import binarize, resize, normalize, augment, extract_brain_mask, split_voi, dilate_erode
 
 
 # LOAD IMAGES / CREATE DATASET
@@ -39,6 +39,7 @@ def load_images(path=None, resolution=(128, 128), display=None):
                     flag = 1
                 else:
                     mask = mask + dataset.pixel_array
+            mask = binarize(mask)
 
             p = os.path.join(path, dir, "Image", os.listdir(os.path.join(path, dir, "Image"))[0])
             files = glob.glob(p + "/*.dcm")
@@ -61,7 +62,7 @@ def load_images(path=None, resolution=(128, 128), display=None):
                 axs[1, 0].imshow(mask[slice, :, :], cmap=plt.cm.bone)
                 axs[0, 0].set_title('Original')
 
-            # TODO: check for quality
+            # TODO: Find a better threshold value or a complementary process or an other method for brain extraction
             brain_mask = extract_brain_mask(image)
             image[~brain_mask] = 0
 
@@ -78,13 +79,6 @@ def load_images(path=None, resolution=(128, 128), display=None):
                 axs[1, 1].imshow(mask[slice, :, :], cmap=plt.cm.bone)
                 axs[0, 1].set_title('Brain\nextracted')
 
-            # axs[0, 0].imshow(image[50, :, :], cmap=plt.cm.bone)
-            # axs[1, 0].imshow(mask[50, :, :], cmap=plt.cm.bone)
-            # axs[0, 1].imshow(image[78, :, :], cmap=plt.cm.bone)
-            # axs[1, 1].imshow(mask[78, :, :], cmap=plt.cm.bone)
-            # axs[0, 2].imshow(image[70, :, :], cmap=plt.cm.bone)
-            # axs[1, 2].imshow(mask[70, :, :], cmap=plt.cm.bone)
-
             # Format inputs
             image = normalize(image, mask=brain_mask)  # image = normalize(image, mask=None)
             image, mask = resize(np.moveaxis(image, 0, -1), np.moveaxis(mask, 0, -1), resolution=resolution)
@@ -92,7 +86,7 @@ def load_images(path=None, resolution=(128, 128), display=None):
             if display is not None:
                 axs[0, 2].imshow(image[:, :, slice], cmap=plt.cm.bone)
                 axs[1, 2].imshow(mask[:, :, slice], cmap=plt.cm.bone)
-                axs[0, 2].set_title('Resized/\nnoramlized')
+                axs[0, 2].set_title('Resized/\nnormalized')
 
             # Data augmentation
             image_aug, mask_aug = augment(image, mask)
@@ -126,15 +120,7 @@ def load_images(path=None, resolution=(128, 128), display=None):
         except:
             print(datetime.now().strftime("%Y/%m/%d %H:%M:%S") + " - error loaded {}".format(dir))
 
-    # plt.savefig('test_loading.png')
-    # plt.close()
-
     return data_images.astype(np.float32), data_masks.astype(int)
-
-
-def save_masks():
-    # TODO
-    pass
 
 
 def create_dataset(path, p=.8, resolution=(128, 128), display=None):
@@ -155,3 +141,51 @@ def create_dataset(path, p=.8, resolution=(128, 128), display=None):
           " - database created in {}min".format(dir, round((time() - t0)) / 60))
 
     return train_data, test_data
+
+
+def save_mask(y_pred, y_true=None, display=None):
+    # Binarize
+    y_pred = binarize(y_pred)
+
+    # Plot
+    if display is not None:
+        if not os.path.isdir(display):
+            display = None
+        else:
+            if y_true is not None:
+                slice = np.array([y_true[s, :, :].sum() for s in range(y_true.shape[0])]).argmax()
+            else:
+                slice = 50  # TODO: some random ?
+
+            fig, axs = plt.subplots(1, 4)
+            axs[0, 0].imshow(y_pred[:, :, slice], cmap=plt.cm.bone)
+            axs[0, 0].set_title('Original\nprediction')
+
+    # Morphological processes
+    y_pred = dilate_erode(y_pred, disk_radius=3)
+
+    if display is not None:
+        axs[0, 1].imshow(y_pred[:, :, slice], cmap=plt.cm.bone)
+        axs[0, 1].set_title('Morpho.\nprocessing')
+
+    # Split
+    y_pred = split_voi(y_pred)
+
+    if display is not None:
+        axs[0, 2].imshow(y_pred[:, :, slice], cmap=plt.cm.bone)
+        axs[0, 2].set_title('Split\nlabels')
+
+    if display is not None:
+        for i in range(axs.shape[0]):
+            for j in range(axs.shape[1]):
+                axs[i, j].axis('off')
+        plt.savefig(os.path.join(display, 'Mask_generation_%s.png' % dir))
+        plt.close()
+
+    # score = y[:, :, :, 0] - y_pred[:, :, :, 0]
+    # total = (y[:, :, :, 0] == 1).sum()
+    # correct = ((score == 0) & (y[:, :, :, 0] == 1)).sum()
+    # uncorrect = (score == -1).sum()
+    # missed = (score == 1).sum()
+    #
+    # print((correct, uncorrect, missed) / (0.01 * total))

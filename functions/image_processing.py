@@ -3,7 +3,6 @@ import tensorflow as tf
 import cv2
 from matplotlib import pyplot as plt
 
-
 from scipy.ndimage import gaussian_filter
 from random import random
 from skimage.morphology import disk, erosion, dilation, opening, closing
@@ -12,6 +11,10 @@ from deepbrain import Extractor
 
 
 # PRE-PROCESS IMAGES (IMAGE & MASK)
+def binarize(input_mask):
+    return cv2.threshold(input_mask, 0.5, 1, cv2.THRESH_BINARY)
+
+
 def resize(input_image, input_mask, resolution=(128, 128)):
     tf.compat.v1.enable_eager_execution()
 
