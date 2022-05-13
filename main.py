@@ -1,6 +1,10 @@
 import os
 from datetime import datetime
 
+import warnings
+
+# warnings.simplefilter('module')
+
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
@@ -8,8 +12,9 @@ import tensorflow as tf
 from functions.database import create_dataset
 from functions.unet_architecture import build_unet_model
 
-# os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
+# Uncomment the following line to perform CPU execution instead of GPU execution
 # tf.config.set_visible_devices([], 'GPU')
+# os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
 
 # MAIN
 if __name__ == '__main__':
@@ -63,7 +68,9 @@ if __name__ == '__main__':
         x = np.array([i.numpy() for i, j in test_dataset])
         y = np.array([j.numpy() for i, j in test_dataset])
     else:
-        train_dataset, test_dataset = create_dataset(datadir, p=train_test_ratio, resolution=resolution)
+        _, test_dataset2 = create_dataset(datadir2, p=0, resolution=resolution)
+        x = np.array([i.numpy() for i, j in test_dataset2])
+        y = np.array([j.numpy() for i, j in test_dataset2])
 
     # Prediction
     y_pred = unet_model.predict(x, batch_size=8)
