@@ -2,14 +2,12 @@ import os
 from datetime import datetime
 
 import warnings
+warnings.filterwarnings("ignore")
 
-# warnings.simplefilter('module')
-
-import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 import matplotlib
-# matplotlib.use("Qt5Agg")
+matplotlib.use("Qt5Agg")
 
 from functions.database import create_dataset, save_mask
 from functions.unet_architecture import build_unet_model
@@ -26,7 +24,7 @@ if __name__ == '__main__':
     # Define working folders
     datadir = os.path.join(path, "data")
     datadir2 = os.path.join(path, "data2")
-    datadir2 = None
+    # datadir2 = None
 
     logdir = os.path.join("logs\\fit_" + datetime.now().strftime("%Y%m%d-%H%M%S"))
     os.makedirs(logdir)
@@ -83,5 +81,16 @@ if __name__ == '__main__':
 
     # Predict
     y_pred = unet_model.predict(x, batch_size=8)
+    y_pred = np.moveaxis(y_pred[:, :, :, 0], 0, -1)
+    if y_pred.sum() > (1 - y_pred).sum():
+        y_pred = 1 - y_pred
+    y = np.moveaxis(y[:, :, :, 0], 0, -1)
 
-    save_mask(y_pred, y)
+    nb_image_bloc = 80
+    if y_pred.shape[-1] > nb_image_bloc:
+        for b in range(round(y_pred.shape[-1] / nb_image_bloc) - 1):
+            save_mask(y_pred[:, :, b * nb_image_bloc:(b + 1) * nb_image_bloc],
+                      y[:, :, b * nb_image_bloc:(b + 1) * nb_image_bloc],
+                      display=outdir, fname=None)
+    else:
+        save_mask(y_pred, y, display=outdir, fname=None)
