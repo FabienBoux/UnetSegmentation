@@ -10,13 +10,14 @@ from matplotlib import pyplot as plt
 from pydicom import dcmread
 from sklearn.utils import shuffle
 
-from functions.image_processing import binarize, resize, normalize, augment, extract_brain_mask, split_voi, dilate_erode
+from functions.image_processing import binarize, resize, normalize, augment, extract_brain_mask, split_voi, \
+    morphological_procedure
 
-from functions.image_show import image_show, mask_show
+from functions.plot import image_show, mask_show
 
 
 # LOAD IMAGES / CREATE DATASET
-def load_images(path=None, resolution=(128, 128), display=None):
+def load_images(path=None, resolution=(128, 128), display=None, augmentation=False):
     data_images = np.zeros((0, resolution[0], resolution[1], 1))
     data_masks = np.zeros((0, resolution[0], resolution[1], 1))
 
@@ -32,13 +33,11 @@ def load_images(path=None, resolution=(128, 128), display=None):
             image = []
             location = []
 
-            flag = 0
             files = glob.glob(os.path.join(path, directory, "Labels/*"))
             for file in files:
                 dataset = dcmread(glob.glob(file + '/*')[0])
-                if flag == 0:
+                if file == files[0]:
                     mask = dataset.pixel_array
-                    flag = 1
                 else:
                     mask = mask + dataset.pixel_array
             mask = binarize(mask)
@@ -64,26 +63,32 @@ def load_images(path=None, resolution=(128, 128), display=None):
                 mask_show(axs[1, 0], mask[slice, :, :])
                 axs[0, 0].set_title('Original')
 
-            # TODO: Find a better threshold value or a complementary process or an other method for brain extraction
+            # Bias field correction
+            # If necessary, see the Nipype library:
+            # https://nipype.readthedocs.io/en/0.12.1/interfaces/generated/nipype.interfaces.brainsuite.brainsuite.html
+
+            # Resize and move axis
+            image, mask = resize(np.moveaxis(image, 0, -1), np.moveaxis(mask, 0, -1), resolution=resolution)
+
+            # Extract brain mask
             brain_mask = extract_brain_mask(image)
             image[~brain_mask] = 0
 
             # Reduce image to non-empty slices
-            idx = [brain_mask[slice, :, :].sum() > 1 for slice in range(brain_mask.shape[0])]
-            image = image[idx, :, :]
-            mask = mask[idx, :, :]
-            brain_mask = brain_mask[idx, :, :]
+            idx = [brain_mask[:, :, slice].sum() > 1 for slice in range(brain_mask.shape[-1])]
+            image = image[:, :, idx]
+            mask = mask[:, :, idx]
+            brain_mask = brain_mask[:, :, idx]
 
             if display is not None:
                 slice = slice - idx[:80].count(False)
 
-                image_show(axs[0, 1], image[slice, :, :])
-                mask_show(axs[1, 1], mask[slice, :, :])
+                image_show(axs[0, 1], image[:, :, slice])
+                mask_show(axs[1, 1], mask[:, :, slice])
                 axs[0, 1].set_title('Brain\nextracted')
 
             # Format inputs
             image = normalize(image, mask=brain_mask)  # image = normalize(image, mask=None)
-            image, mask = resize(np.moveaxis(image, 0, -1), np.moveaxis(mask, 0, -1), resolution=resolution)
 
             if display is not None:
                 image_show(axs[0, 2], image[:, :, slice])
@@ -91,12 +96,15 @@ def load_images(path=None, resolution=(128, 128), display=None):
                 axs[0, 2].set_title('Resized/\nnormalized')
 
             # Data augmentation
-            image_aug, mask_aug = augment(image, mask)
+            if augmentation:
+                image_aug, mask_aug = augment(image, mask)
+                image = np.concatenate((image, image_aug), axis=-1)
+                mask = np.concatenate((mask, mask_aug), axis=-1)
 
-            if display is not None:
-                image_show(axs[0, 3], image_aug[:, :, slice])
-                mask_show(axs[1, 3], mask_aug[:, :, slice])
-                axs[0, 3].set_title('Image\naugmented')
+                if display is not None:
+                    image_show(axs[0, 3], image_aug[:, :, slice])
+                    mask_show(axs[1, 3], mask_aug[:, :, slice])
+                    axs[0, 3].set_title('Image\naugmented')
 
             # Concatenate
             if mask.shape == image.shape:
@@ -122,10 +130,10 @@ def load_images(path=None, resolution=(128, 128), display=None):
     return data_images.astype(np.float32), data_masks.astype(int)
 
 
-def create_dataset(path, p=.8, resolution=(128, 128), display=None):
+def create_dataset(path, p=.8, resolution=(128, 128), display=None, augmentation=True):
     t0 = time()
 
-    data_images, data_masks = load_images(path, resolution=resolution, display=display)
+    data_images, data_masks = load_images(path, resolution=resolution, display=display, augmentation=augmentation)
     data_images, data_masks = shuffle(data_images, data_masks, random_state=0)
 
     train_data = tf.data.Dataset.from_tensor_slices(
@@ -142,6 +150,15 @@ def create_dataset(path, p=.8, resolution=(128, 128), display=None):
     return train_data, test_data
 
 
+# SAVE MASKS / COMPUTE ACCURACY METRICS
+def score_classification(true_mask, pred_mask):
+    diff = true_mask - pred_mask
+    score = 100 * np.array([((diff == 0) & (true_mask == 1)).sum(), (diff == -1).sum()]) / (
+            true_mask == 1).sum()
+
+    return score
+
+
 def save_mask(input_mask, true_mask=None, display=None, fname=None):
     if fname is None:
         fname = round(random() * 1e6)
@@ -156,9 +173,7 @@ def save_mask(input_mask, true_mask=None, display=None, fname=None):
         else:
             if true_mask is not None:
                 slice = np.array([true_mask[:, :, s].sum() for s in range(true_mask.shape[-1])]).argmax()
-                score = true_mask - new_mask
-                score = 100 * np.array([((score == 0) & (true_mask == 1)).sum(), (score == -1).sum()]) / (
-                        true_mask == 1).sum()
+                score = score_classification(true_mask, new_mask)
             else:
                 slice = 50  # TODO: some random ?
 
@@ -167,7 +182,7 @@ def save_mask(input_mask, true_mask=None, display=None, fname=None):
             axs[0].set_title('Original\nprediction\n{} - {}%'.format(round(score[0]), round(score[1])))
 
     # Morphological processes
-    new_mask = dilate_erode(new_mask, disk_radius=3)
+    new_mask = morphological_procedure(new_mask, disk_radius=3)
 
     if display is not None:
         if true_mask is not None:
@@ -187,11 +202,3 @@ def save_mask(input_mask, true_mask=None, display=None, fname=None):
     if display is not None:
         plt.savefig(os.path.join(display, 'Mask_generation_%s.png' % str(fname)))
         plt.close()
-
-    # score = y[:, :, :, 0] - y_pred[:, :, :, 0]
-    # total = (y[:, :, :, 0] == 1).sum()
-    # correct = ((score == 0) & (y[:, :, :, 0] == 1)).sum()
-    # uncorrect = (score == -1).sum()
-    # missed = (score == 1).sum()
-    #
-    # print((correct, uncorrect, missed) / (0.01 * total))

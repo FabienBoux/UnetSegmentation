@@ -2,14 +2,21 @@ import os
 from datetime import datetime
 
 import warnings
+
+import matplotlib.pyplot as plt
+
+from functions.image_processing import binarize
+from functions.plot import plot_model_history
+
 warnings.filterwarnings("ignore")
 
 import numpy as np
 import tensorflow as tf
 import matplotlib
+
 matplotlib.use("Qt5Agg")
 
-from functions.database import create_dataset, save_mask
+from functions.database import create_dataset, save_mask, score_classification, load_images
 from functions.unet_architecture import build_unet_model
 
 # Uncomment the following line to perform CPU execution instead of GPU execution
@@ -22,21 +29,20 @@ if __name__ == '__main__':
     resolution = (128, 128)
 
     # Define working folders
-    datadir = os.path.join(path, "data")
-    datadir2 = os.path.join(path, "data2")
-    # datadir2 = None
+    datadir = os.path.join(path, "data_bl")
+    datadir2 = os.path.join(path, "data_w6")
 
-    logdir = os.path.join("logs\\fit_" + datetime.now().strftime("%Y%m%d-%H%M%S"))
-    os.makedirs(logdir)
     outdir = os.path.join("outputs\\fit_" + datetime.now().strftime("%Y%m%d-%H%M%S"))
     os.makedirs(outdir)
+    logdir = os.path.join(outdir, 'logs')
+    os.makedirs(logdir)
 
     # Define neural network training hyperparameters
     batch_size = 10
     buffer_size = 10
     train_test_ratio = .8
     validation_test_ratio = .5
-    num_epochs = 10
+    num_epochs = 15
     val_subsplits = 5
 
     # Create database and split
@@ -70,27 +76,35 @@ if __name__ == '__main__':
                                    validation_data=test_batches,
                                    callbacks=[tensorboard_callback])
 
+    # Plot training history
+    fig, axs = plt.subplots(1, 2)
+    plot_model_history(axs, model_history)
+    plt.savefig(os.path.join(logdir, 'Training.png'))
+    plt.close()
+
     # Test data
     if datadir2 is None:
         x = np.array([i.numpy() for i, j in test_dataset])
         y = np.array([j.numpy() for i, j in test_dataset])
     else:
-        _, test_dataset2 = create_dataset(datadir2, p=0, resolution=resolution)
-        x = np.array([i.numpy() for i, j in test_dataset2])
-        y = np.array([j.numpy() for i, j in test_dataset2])
+        x, y = load_images(datadir2, resolution=resolution, display=None, augmentation=False)
+    y = np.moveaxis(y[:, :, :, 0], 0, -1)
 
     # Predict
     y_pred = unet_model.predict(x, batch_size=8)
     y_pred = np.moveaxis(y_pred[:, :, :, 0], 0, -1)
     if y_pred.sum() > (1 - y_pred).sum():
         y_pred = 1 - y_pred
-    y = np.moveaxis(y[:, :, :, 0], 0, -1)
 
+    # Global results
+    print(score_classification(y, binarize(y_pred)))
+
+    # Individual results
     nb_image_bloc = 80
     if y_pred.shape[-1] > nb_image_bloc:
         for b in range(round(y_pred.shape[-1] / nb_image_bloc) - 1):
             save_mask(y_pred[:, :, b * nb_image_bloc:(b + 1) * nb_image_bloc],
                       y[:, :, b * nb_image_bloc:(b + 1) * nb_image_bloc],
                       display=outdir, fname=None)
-    else:
-        save_mask(y_pred, y, display=outdir, fname=None)
+
+    save_mask(y_pred, y, display=outdir, fname='ALL')
