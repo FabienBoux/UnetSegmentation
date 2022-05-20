@@ -55,16 +55,17 @@ def normalize(input_image, mask=None):
 
 
 # BRAIN EXTRACTION
-def extract_brain_mask(input_image, threshold=1e-10):
+def extract_brain_mask(input_image, threshold=0):
     # `prob` will be a 3d numpy image containing probability of being brain tissue for each of the voxels in `img`
     # mask can be obtained as: mask = prob > 0.5
     ext = Extractor()
     mask = ext.run(input_image) > threshold
 
-    footprint = disk(round(input_image.shape[1] / 10))
-    for s in range(mask.shape[0]):
-        mask[s, :, :] = erosion(dilation(mask[s, :, :], footprint), footprint)
-        mask[s, :, :] = erosion(dilation(mask[s, :, :], footprint), footprint)
+    # TODO: this is a time-consuming procedure
+    # footprint = disk(round(input_image.shape[1] / 10))
+    # for s in range(mask.shape[0]):
+    #     mask[s, :, :] = erosion(dilation(mask[s, :, :], footprint), footprint)
+    #     mask[s, :, :] = erosion(dilation(mask[s, :, :], footprint), footprint)
 
     return mask
 

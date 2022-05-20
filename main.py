@@ -1,23 +1,20 @@
 import os
 from datetime import datetime
-
-import warnings
-
+import matplotlib
 import matplotlib.pyplot as plt
 
-from functions.image_processing import binarize
-from functions.plot import plot_model_history
+matplotlib.use("Qt5Agg")
+
+import warnings
 
 warnings.filterwarnings("ignore")
 
 import numpy as np
 import tensorflow as tf
-import matplotlib
-
-matplotlib.use("Qt5Agg")
 
 from functions.database import create_dataset, save_mask, score_classification, load_images, load_image
 from functions.unet_architecture import build_unet_model
+from functions.plot import plot_model_history
 
 # Uncomment the following line to perform CPU execution instead of GPU execution
 # tf.config.set_visible_devices([], 'GPU')
@@ -29,7 +26,7 @@ if __name__ == '__main__':
     resolution = (128, 128)
 
     # Define working folders
-    datadir = os.path.join(path, "data_fast")
+    datadir = os.path.join(path, "data_bl")
     datadir2 = os.path.join(path, "data_w6")
 
     outdir = os.path.join("outputs\\fit_" + datetime.now().strftime("%Y%m%d-%H%M%S"))
@@ -38,11 +35,11 @@ if __name__ == '__main__':
     os.makedirs(logdir)
 
     # Define neural network training hyperparameters
-    batch_size = 10
+    batch_size = 20
     buffer_size = 10
     train_test_ratio = .8
     validation_test_ratio = .5
-    num_epochs = 10
+    num_epochs = 10  # TODO: see EarlyStopping to increase the number of epochs
     val_subsplits = 5
 
     # Create database and split
