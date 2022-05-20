@@ -1,3 +1,6 @@
+import os
+
+import keras.models
 import tensorflow as tf
 from tensorflow.keras import layers
 
@@ -67,3 +70,12 @@ def build_unet_model(shape=(128, 128, 1)):
     unet_model = tf.keras.Model(inputs, outputs, name="U-Net")
 
     return unet_model
+
+
+# SAVE / LOAD MODELS
+def save_unet_model(unet_model, path):
+    unet_model.save(os.path.join(path, 'unet_model'))
+
+
+def load_unet_model(path):
+    return keras.models.load_model(os.path.join(path, 'unet_model'))

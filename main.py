@@ -16,7 +16,7 @@ import matplotlib
 
 matplotlib.use("Qt5Agg")
 
-from functions.database import create_dataset, save_mask, score_classification, load_images
+from functions.database import create_dataset, save_mask, score_classification, load_images, load_image
 from functions.unet_architecture import build_unet_model
 
 # Uncomment the following line to perform CPU execution instead of GPU execution
@@ -29,7 +29,7 @@ if __name__ == '__main__':
     resolution = (128, 128)
 
     # Define working folders
-    datadir = os.path.join(path, "data_bl")
+    datadir = os.path.join(path, "data_fast")
     datadir2 = os.path.join(path, "data_w6")
 
     outdir = os.path.join("outputs\\fit_" + datetime.now().strftime("%Y%m%d-%H%M%S"))
@@ -42,7 +42,7 @@ if __name__ == '__main__':
     buffer_size = 10
     train_test_ratio = .8
     validation_test_ratio = .5
-    num_epochs = 15
+    num_epochs = 10
     val_subsplits = 5
 
     # Create database and split
@@ -82,29 +82,34 @@ if __name__ == '__main__':
     plt.savefig(os.path.join(logdir, 'Training.png'))
     plt.close()
 
-    # Test data
-    if datadir2 is None:
-        x = np.array([i.numpy() for i, j in test_dataset])
-        y = np.array([j.numpy() for i, j in test_dataset])
-    else:
-        x, y = load_images(datadir2, resolution=resolution, display=None, augmentation=False)
-    y = np.moveaxis(y[:, :, :, 0], 0, -1)
+    # Test
+    correct_classif = []
+    uncorrect_classif = []
+    for dir in os.listdir(datadir2):
+        try:
+            # Load
+            x, y = load_image(os.path.join(datadir2, dir), resolution=resolution, augmentation=False)
+            x = np.expand_dims(np.moveaxis(x, -1, 0), axis=-1)
+            y = np.expand_dims(np.moveaxis(y, -1, 0), axis=-1)
+            y = np.moveaxis(y[:, :, :, 0], 0, -1)
 
-    # Predict
-    y_pred = unet_model.predict(x, batch_size=8)
-    y_pred = np.moveaxis(y_pred[:, :, :, 0], 0, -1)
-    if y_pred.sum() > (1 - y_pred).sum():
-        y_pred = 1 - y_pred
+            # Predict
+            y_pred = unet_model.predict(x, batch_size=8)
+            y_pred = np.moveaxis(y_pred[:, :, :, 0], 0, -1)
+            if y_pred.sum() > (1 - y_pred).sum():
+                y_pred = 1 - y_pred
 
-    # Global results
-    print(score_classification(y, binarize(y_pred)))
+            score = save_mask(y_pred, y, display=outdir, log_fname=dir)
+            correct_classif.append(score[0])
+            uncorrect_classif.append(score[1])
 
-    # Individual results
-    nb_image_bloc = 80
-    if y_pred.shape[-1] > nb_image_bloc:
-        for b in range(round(y_pred.shape[-1] / nb_image_bloc) - 1):
-            save_mask(y_pred[:, :, b * nb_image_bloc:(b + 1) * nb_image_bloc],
-                      y[:, :, b * nb_image_bloc:(b + 1) * nb_image_bloc],
-                      display=outdir, fname=None)
+        except:
+            pass
 
-    save_mask(y_pred, y, display=outdir, fname='ALL')
+    fig, ax = plt.subplots(1, 1)
+    ax.hist(correct_classif, bins=40, range=[0, 100], label='Correct')
+    ax.hist(uncorrect_classif, bins=40, range=[0, 100], label='Uncorrect')
+    ax.set_xlabel('% of total metastases volume')
+    ax.set_xlim([0, 100])
+    plt.savefig(os.path.join(logdir, 'Classification_accuracy.png'))
+    plt.close()

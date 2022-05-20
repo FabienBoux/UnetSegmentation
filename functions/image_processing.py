@@ -61,7 +61,7 @@ def extract_brain_mask(input_image, threshold=1e-10):
     ext = Extractor()
     mask = ext.run(input_image) > threshold
 
-    footprint = disk(15)
+    footprint = disk(round(input_image.shape[1] / 10))
     for s in range(mask.shape[0]):
         mask[s, :, :] = erosion(dilation(mask[s, :, :], footprint), footprint)
         mask[s, :, :] = erosion(dilation(mask[s, :, :], footprint), footprint)
@@ -87,7 +87,6 @@ def morphological_procedure(input_mask, disk_radius=1):
     new_mask = input_mask.copy()
     footprint = disk(disk_radius)
     for s in range(input_mask.shape[-1]):
-        # new_mask[:, :, s] = erosion(dilation(input_mask[:, :, s], footprint), footprint)
         new_mask[:, :, s] = closing(input_mask[:, :, s], footprint)
 
     return new_mask
